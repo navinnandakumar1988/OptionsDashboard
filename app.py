@@ -19,9 +19,29 @@ except Exception:
     pass
 
 # ---------- FILES ----------
+from pathlib import Path
+import streamlit as st
+import pandas as pd
+
+def _csv_source(sym: str):
+    """
+    1) If Streamlit Secrets provides a URL (cloud), use it
+    2) Else if local /files exists (your n8n writes here), use it
+    3) Else fallback to repo ./data/ (tiny samples)
+    """
+    url = st.secrets.get("data_urls", {}).get(sym)
+    if url:
+        return url  # pandas can read URLs directly
+
+    local = Path(f"/files/{sym}_reference_data_V9.csv")
+    if local.exists():
+        return local
+
+    return Path(f"data/{sym}_reference_data_V9.csv")
+
 FILES = {
-    "NIFTY": Path("/files/NIFTY_reference_data_V9.csv"),
-    "BANKNIFTY": Path("/files/BANKNIFTY_reference_data_V9.csv"),
+    "NIFTY": _csv_source("NIFTY"),
+    "BANKNIFTY": _csv_source("BANKNIFTY"),
 }
 
 CE_COLOR = "#1f77b4"
@@ -56,11 +76,8 @@ def first_present(df: pd.DataFrame, candidates: list[str]) -> str | None:
 
 @st.cache_data(ttl=60)
 def load_csv(symbol: str) -> pd.DataFrame:
-    path = FILES[symbol]
-    if not path.exists():
-        raise FileNotFoundError(f"Missing file: {path}")
-
-    df = pd.read_csv(path, low_memory=False)
+    src = FILES[symbol]
+    return pd.read_csv(str(src), low_memory=False)
 
     # ---------- Robust DateTime build ----------
     # Prefer explicit Date+Time; else DateTime; else best-guess date/time columns
